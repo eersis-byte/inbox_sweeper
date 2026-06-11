@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Inbox Sweeper - Yahoo</title>
+    <title>Inbox Sweeper</title>
     <link rel="stylesheet" href="/inbox-sweeper/styles.css" />
   </head>
   <body>
@@ -12,35 +12,66 @@
         <header class="topbar">
           <div>
             <h1>Inbox Sweeper</h1>
-            <p class="subtitle">Yahoo-only JavaScript prototype. Scan senders, preview emails, and move selected sender messages to Trash.</p>
+            <p class="subtitle">Clean up Gmail, Microsoft Outlook, and Yahoo emails by sender. Scan, preview, confirm, and move to Trash.</p>
           </div>
-          <button id="disconnectBtn" class="secondary hidden">Disconnect</button>
+          <button id="refreshBtn" class="secondary">Refresh Status</button>
         </header>
 
         <div id="alert" class="alert hidden"></div>
         <div id="loading" class="notice hidden">Working...</div>
 
-        <section id="loginPanel" class="panel">
-          <h2>Connect Yahoo Mail</h2>
-          <p class="warning"><strong>Use a Yahoo app password</strong>, not your regular Yahoo password. This prototype stores it only in the temporary server session.</p>
-
-          <form id="loginForm" class="form">
-            <label>
-              Yahoo email address
-              <input id="emailInput" type="email" placeholder="name@yahoo.com" autocomplete="username" required />
-            </label>
-            <label>
-              Yahoo app password
-              <input id="passwordInput" type="password" placeholder="Yahoo app password" autocomplete="current-password" required />
-            </label>
-            <button class="primary" type="submit">Connect Yahoo</button>
-          </form>
+        <section class="warning">
+          <strong>Safety note:</strong> this app only moves selected scanned Inbox messages to Trash/Deleted Items. It does not permanently delete mail. Unread messages are included by default, but you will see the unread count before confirming.
         </section>
 
-        <section id="appPanel" class="panel hidden">
-          <div class="connected">Connected: <strong id="connectedEmail"></strong></div>
+        <section class="providers">
+          <article class="provider-card" data-provider="yahoo">
+            <div class="provider-head">
+              <h2>Yahoo Mail</h2>
+              <span id="yahooBadge" class="badge disconnected">Not connected</span>
+            </div>
+            <p id="yahooEmail" class="muted"></p>
+            <form id="yahooForm" class="form compact">
+              <label>
+                Yahoo email address
+                <input id="yahooEmailInput" type="email" placeholder="name@yahoo.com" autocomplete="username" />
+              </label>
+              <label>
+                Yahoo app password
+                <input id="yahooPasswordInput" type="password" placeholder="Yahoo app password" autocomplete="current-password" />
+              </label>
+              <button class="primary" type="submit">Connect Yahoo</button>
+            </form>
+            <button id="yahooDisconnect" class="secondary hidden">Disconnect Yahoo</button>
+          </article>
 
-          <div class="settings">
+          <article class="provider-card" data-provider="gmail">
+            <div class="provider-head">
+              <h2>Gmail</h2>
+              <span id="gmailBadge" class="badge disconnected">Not connected</span>
+            </div>
+            <p id="gmailEmail" class="muted"></p>
+            <a id="gmailConnect" class="button primary" href="/inbox-sweeper/api/gmail/auth">Connect Gmail</a>
+            <button id="gmailDisconnect" class="secondary hidden">Disconnect Gmail</button>
+          </article>
+
+          <article class="provider-card" data-provider="microsoft">
+            <div class="provider-head">
+              <h2>Microsoft / Outlook</h2>
+              <span id="microsoftBadge" class="badge disconnected">Not connected</span>
+            </div>
+            <p id="microsoftEmail" class="muted"></p>
+            <a id="microsoftConnect" class="button primary" href="/inbox-sweeper/api/microsoft/auth">Connect Microsoft</a>
+            <button id="microsoftDisconnect" class="secondary hidden">Disconnect Microsoft</button>
+          </article>
+        </section>
+
+        <section id="workspace" class="panel hidden">
+          <div class="settings-grid">
+            <label>
+              Active account
+              <select id="providerSelect"></select>
+            </label>
             <label>
               Scan limit
               <select id="limitSelect">
@@ -52,38 +83,42 @@
               </select>
             </label>
             <label class="check"><input id="includeUnread" type="checkbox" checked /> Include unread messages in cleanup</label>
-            <label class="check"><input id="skipFlagged" type="checkbox" checked /> Skip flagged messages</label>
+            <label class="check"><input id="skipFlagged" type="checkbox" checked /> Skip starred/flagged messages</label>
             <label class="check"><input id="skipAttachments" type="checkbox" /> Skip messages with attachments</label>
-            <button id="scanBtn" class="primary">Scan Yahoo Inbox</button>
           </div>
-
-          <section id="sendersPanel" class="hidden">
-            <div class="toolbar">
-              <h2>Senders</h2>
-              <input id="senderSearch" class="search" placeholder="Search sender..." />
-            </div>
-            <p id="selectionSummary" class="muted">No senders selected.</p>
-            <div id="sendersTable" class="table"></div>
-            <button id="previewBtn" class="danger" disabled>Preview Cleanup</button>
-          </section>
-
-          <section id="previewPanel" class="preview hidden">
-            <h2>Preview Cleanup</h2>
-            <div id="previewSummary"></div>
-            <h3>Sample messages</h3>
-            <ul id="sampleList"></ul>
-            <label>
-              Type <strong id="confirmExpected"></strong> to confirm
-              <input id="confirmInput" placeholder="DELETE 123" />
-            </label>
-            <button id="trashBtn" class="danger" disabled>Move to Trash</button>
-          </section>
-
-          <section id="resultPanel" class="success hidden"></section>
+          <button id="scanBtn" class="primary">Scan Selected Inbox</button>
+          <p id="providerNote" class="muted"></p>
         </section>
+
+        <section id="sendersPanel" class="hidden">
+          <div class="toolbar">
+            <h2>Senders</h2>
+            <div class="toolbar-actions">
+              <input id="senderSearch" class="search" placeholder="Search sender..." />
+              <button id="selectVisibleBtn" class="secondary">Select visible</button>
+              <button id="clearSelectionBtn" class="secondary">Clear</button>
+            </div>
+          </div>
+          <p id="selectionSummary" class="muted">No senders selected.</p>
+          <div id="sendersTable" class="table"></div>
+          <button id="previewBtn" class="danger" disabled>Preview Cleanup</button>
+        </section>
+
+        <section id="previewPanel" class="preview hidden">
+          <h2>Preview Cleanup</h2>
+          <div id="previewSummary"></div>
+          <h3>Sample messages</h3>
+          <ul id="sampleList"></ul>
+          <label>
+            Type <strong id="confirmExpected"></strong> to confirm
+            <input id="confirmInput" placeholder="DELETE 123" />
+          </label>
+          <button id="trashBtn" class="danger" disabled>Move to Trash</button>
+        </section>
+
+        <section id="resultPanel" class="success hidden"></section>
       </section>
     </main>
-
     <script src="/inbox-sweeper/app.js"></script>
   </body>
 </html>
