@@ -1,0 +1,23 @@
+{
+  "name": "inbox-sweeper-yahoo-js",
+  "version": "1.0.0",
+  "description": "Yahoo Inbox Sweeper - vanilla JavaScript frontend with Node.js backend",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "express-session": "^1.18.1",
+    "helmet": "^7.1.0",
+    "imapflow": "^1.0.164",
+    "memorystore": "^1.6.7",
+    "dotenv": "^16.4.5"
+  }
+}

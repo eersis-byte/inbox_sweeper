@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inbox Sweeper - Yahoo</title>
+    <link rel="stylesheet" href="/inbox-sweeper/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="card">
+        <header class="topbar">
+          <div>
+            <h1>Inbox Sweeper</h1>
+            <p class="subtitle">Yahoo-only JavaScript prototype. Scan senders, preview emails, and move selected sender messages to Trash.</p>
+          </div>
+          <button id="disconnectBtn" class="secondary hidden">Disconnect</button>
+        </header>
+
+        <div id="alert" class="alert hidden"></div>
+        <div id="loading" class="notice hidden">Working...</div>
+
+        <section id="loginPanel" class="panel">
+          <h2>Connect Yahoo Mail</h2>
+          <p class="warning"><strong>Use a Yahoo app password</strong>, not your regular Yahoo password. This prototype stores it only in the temporary server session.</p>
+
+          <form id="loginForm" class="form">
+            <label>
+              Yahoo email address
+              <input id="emailInput" type="email" placeholder="name@yahoo.com" autocomplete="username" required />
+            </label>
+            <label>
+              Yahoo app password
+              <input id="passwordInput" type="password" placeholder="Yahoo app password" autocomplete="current-password" required />
+            </label>
+            <button class="primary" type="submit">Connect Yahoo</button>
+          </form>
+        </section>
+
+        <section id="appPanel" class="panel hidden">
+          <div class="connected">Connected: <strong id="connectedEmail"></strong></div>
+
+          <div class="settings">
+            <label>
+              Scan limit
+              <select id="limitSelect">
+                <option value="250">Last 250 Inbox messages</option>
+                <option value="1000" selected>Last 1,000 Inbox messages</option>
+                <option value="2500">Last 2,500 Inbox messages</option>
+                <option value="5000">Last 5,000 Inbox messages</option>
+                <option value="10000">Last 10,000 Inbox messages</option>
+              </select>
+            </label>
+            <label class="check"><input id="includeUnread" type="checkbox" checked /> Include unread messages in cleanup</label>
+            <label class="check"><input id="skipFlagged" type="checkbox" checked /> Skip flagged messages</label>
+            <label class="check"><input id="skipAttachments" type="checkbox" /> Skip messages with attachments</label>
+            <button id="scanBtn" class="primary">Scan Yahoo Inbox</button>
+          </div>
+
+          <section id="sendersPanel" class="hidden">
+            <div class="toolbar">
+              <h2>Senders</h2>
+              <input id="senderSearch" class="search" placeholder="Search sender..." />
+            </div>
+            <p id="selectionSummary" class="muted">No senders selected.</p>
+            <div id="sendersTable" class="table"></div>
+            <button id="previewBtn" class="danger" disabled>Preview Cleanup</button>
+          </section>
+
+          <section id="previewPanel" class="preview hidden">
+            <h2>Preview Cleanup</h2>
+            <div id="previewSummary"></div>
+            <h3>Sample messages</h3>
+            <ul id="sampleList"></ul>
+            <label>
+              Type <strong id="confirmExpected"></strong> to confirm
+              <input id="confirmInput" placeholder="DELETE 123" />
+            </label>
+            <button id="trashBtn" class="danger" disabled>Move to Trash</button>
+          </section>
+
+          <section id="resultPanel" class="success hidden"></section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/inbox-sweeper/app.js"></script>
+  </body>
+</html>
