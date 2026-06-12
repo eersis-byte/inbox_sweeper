@@ -6,6 +6,7 @@ const PROVIDERS = {
 
 const state = {
   accounts: {},
+  config: {},
   activeProvider: null,
   senders: [],
   selected: new Set(),
@@ -57,6 +58,48 @@ async function api(path, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Request failed.');
   return data;
+}
+
+
+async function refreshConfig() {
+  try {
+    const data = await api('/config');
+    state.config = data || {};
+    renderOAuthConfigWarnings();
+  } catch (_) {
+    state.config = {};
+  }
+}
+
+function renderOAuthConfigWarnings() {
+  const gmailCfg = state.config.gmail || {};
+  const msCfg = state.config.microsoft || {};
+  const gmailConnect = $('gmailConnect');
+  const msConnect = $('microsoftConnect');
+  const gmailHelp = $('gmailHelp');
+  const msHelp = $('microsoftHelp');
+
+  if (gmailConnect) {
+    gmailConnect.classList.toggle('disabled-link', !gmailCfg.configured);
+    gmailConnect.setAttribute('aria-disabled', gmailCfg.configured ? 'false' : 'true');
+    gmailConnect.title = gmailCfg.configured ? '' : 'Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first.';
+  }
+  if (gmailHelp) {
+    gmailHelp.innerHTML = gmailCfg.configured
+      ? `Redirect URI: <code>${escapeHtml(gmailCfg.redirectUri || '')}</code>`
+      : `Gmail setup needed: set real <code>GOOGLE_CLIENT_ID</code> and <code>GOOGLE_CLIENT_SECRET</code>. Redirect URI to add in Google Cloud: <code>${escapeHtml(gmailCfg.redirectUri || '')}</code>`;
+  }
+
+  if (msConnect) {
+    msConnect.classList.toggle('disabled-link', !msCfg.configured);
+    msConnect.setAttribute('aria-disabled', msCfg.configured ? 'false' : 'true');
+    msConnect.title = msCfg.configured ? '' : 'Set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET first.';
+  }
+  if (msHelp) {
+    msHelp.innerHTML = msCfg.configured
+      ? `Tenant: <code>${escapeHtml(msCfg.tenant || 'common')}</code>. Redirect URI: <code>${escapeHtml(msCfg.redirectUri || '')}</code>`
+      : `Microsoft setup needed: set real <code>MICROSOFT_CLIENT_ID</code> and <code>MICROSOFT_CLIENT_SECRET</code>. Tenant: <code>${escapeHtml(msCfg.tenant || 'common')}</code>. Redirect URI to add in Azure: <code>${escapeHtml(msCfg.redirectUri || '')}</code>`;
+  }
 }
 
 function escapeHtml(value) {
@@ -192,7 +235,7 @@ async function connectYahoo(e) {
       body: JSON.stringify({ email: els.yahooEmailInput.value, appPassword: els.yahooPasswordInput.value }),
     });
     els.yahooPasswordInput.value = '';
-    await refreshStatus();
+    await refreshConfig().then(refreshStatus);
   } catch (err) {
     showError(err.message);
   } finally {
@@ -206,7 +249,7 @@ async function disconnectProvider(provider) {
   try {
     await api(`/${provider}/disconnect`, { method: 'POST', body: '{}' });
     if (state.activeProvider === provider) resetResults();
-    await refreshStatus();
+    await refreshConfig().then(refreshStatus);
   } catch (err) {
     showError(err.message);
   } finally {
@@ -308,6 +351,22 @@ els.trashBtn.addEventListener('click', moveToTrash);
 els.selectVisibleBtn.addEventListener('click', () => { visibleSenders().forEach((s) => state.selected.add(s.fromEmail)); renderSenders(); });
 els.clearSelectionBtn.addEventListener('click', () => { state.selected.clear(); renderSenders(); });
 
+
+const gmailConnectLink = $('gmailConnect');
+if (gmailConnectLink) gmailConnectLink.addEventListener('click', (e) => {
+  if (!state.config.gmail?.configured) {
+    e.preventDefault();
+    showError('Gmail OAuth is not configured yet. Add real GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables, then restart/redeploy.');
+  }
+});
+const microsoftConnectLink = $('microsoftConnect');
+if (microsoftConnectLink) microsoftConnectLink.addEventListener('click', (e) => {
+  if (!state.config.microsoft?.configured) {
+    e.preventDefault();
+    showError('Microsoft OAuth is not configured yet. Add real MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET environment variables, then restart/redeploy.');
+  }
+});
+
 for (const provider of Object.keys(PROVIDERS)) {
   const btn = $(`${provider}Disconnect`);
   if (btn) btn.addEventListener('click', () => disconnectProvider(provider));
@@ -317,4 +376,4 @@ const params = new URLSearchParams(window.location.search);
 if (params.get('error')) showError(params.get('error'));
 if (params.get('connected')) window.history.replaceState({}, '', '/inbox-sweeper/');
 
-refreshStatus();
+refreshConfig().then(refreshStatus);

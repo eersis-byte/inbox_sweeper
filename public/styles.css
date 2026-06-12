@@ -48,3 +48,20 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   .table { overflow-x: auto; }
   .table-row, .table-header { min-width: 860px; }
 }
+
+.setup-help {
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.45;
+  word-break: break-word;
+}
+.setup-help code {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 1px 4px;
+}
+.disabled-link {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
