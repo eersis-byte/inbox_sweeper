@@ -195,3 +195,36 @@ OAuth callback routes:
 - Add CSV cleanup report export.
 - Add per-provider OAuth setup diagnostics.
 - Add persistent encrypted token storage for personal/internal use.
+
+
+## OAuth troubleshooting
+
+If Google says `Error 401: invalid_client` or `The OAuth client was not found`, the app is still using a blank/placeholder/incorrect `GOOGLE_CLIENT_ID`, or the OAuth Client ID was deleted/created in the wrong Google Cloud project. Create a Google OAuth client, then set the exact Client ID and Client Secret in your host's environment variables.
+
+If Microsoft says `AADSTS700016: Application with identifier 'your-microsoft-client-id' was not found`, the app is still using the placeholder value. Replace `your-microsoft-client-id` with the real Application (client) ID from your Microsoft Entra App Registration.
+
+The app exposes a setup diagnostics endpoint:
+
+```text
+/inbox-sweeper/api/config
+```
+
+Open that URL after deployment. It will show whether Gmail/Microsoft are configured and the exact redirect URIs you need to add in Google Cloud / Microsoft Entra.
+
+### Google redirect URI
+
+Add this exact URI to your Google OAuth client under Authorized redirect URIs:
+
+```text
+https://YOUR-DOMAIN/inbox-sweeper/api/gmail/callback
+```
+
+### Microsoft redirect URI
+
+Add this exact URI to your Microsoft app registration under Authentication > Web redirect URIs:
+
+```text
+https://YOUR-DOMAIN/inbox-sweeper/api/microsoft/callback
+```
+
+For Microsoft, use `MICROSOFT_TENANT=common` unless you intentionally want only one tenant. If you use a specific tenant, the app registration must exist in that tenant or be consented there.

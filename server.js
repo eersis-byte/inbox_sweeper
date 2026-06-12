@@ -84,6 +84,59 @@ function sameOriginGuard(req, res, next) {
 
 app.use('/inbox-sweeper/api', sameOriginGuard);
 
+
+function cleanEnv(name) {
+  return String(process.env[name] || '').trim();
+}
+
+function looksPlaceholder(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (!v) return true;
+  return v.includes('your-') || v.includes('change-this') || v.includes('placeholder') || v === 'client-id' || v === 'client-secret';
+}
+
+function providerOAuthConfig(provider) {
+  if (provider === 'gmail') {
+    const clientId = cleanEnv('GOOGLE_CLIENT_ID');
+    const clientSecret = cleanEnv('GOOGLE_CLIENT_SECRET');
+    const configured = !looksPlaceholder(clientId) && !looksPlaceholder(clientSecret);
+    return {
+      configured,
+      clientIdPresent: Boolean(clientId),
+      clientSecretPresent: Boolean(clientSecret),
+      redirectUriEnv: cleanEnv('GOOGLE_REDIRECT_URI'),
+    };
+  }
+  if (provider === 'microsoft') {
+    const clientId = cleanEnv('MICROSOFT_CLIENT_ID');
+    const clientSecret = cleanEnv('MICROSOFT_CLIENT_SECRET');
+    const tenant = cleanEnv('MICROSOFT_TENANT') || 'common';
+    const configured = !looksPlaceholder(clientId) && !looksPlaceholder(clientSecret);
+    return {
+      configured,
+      clientIdPresent: Boolean(clientId),
+      clientSecretPresent: Boolean(clientSecret),
+      tenant,
+      redirectUriEnv: cleanEnv('MICROSOFT_REDIRECT_URI'),
+    };
+  }
+  return { configured: false };
+}
+
+function requireOAuthConfigured(provider, req, res) {
+  const cfg = providerOAuthConfig(provider);
+  if (!cfg.configured) {
+    const label = provider === 'gmail' ? 'Gmail' : 'Microsoft';
+    const vars = provider === 'gmail'
+      ? 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET'
+      : 'MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET';
+    const redirect = redirectUri(req, provider);
+    res.status(500).send(`${label} OAuth is not configured correctly. Set real values for ${vars}. Current redirect URI: ${redirect}`);
+    return false;
+  }
+  return true;
+}
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -463,6 +516,28 @@ app.get('/', (_req, res) => res.redirect('/inbox-sweeper/'));
 
 app.get('/inbox-sweeper/api/health', (_req, res) => res.json({ ok: true, app: 'Inbox Sweeper JS' }));
 
+
+app.get('/inbox-sweeper/api/config', (req, res) => {
+  const gmail = providerOAuthConfig('gmail');
+  const microsoft = providerOAuthConfig('microsoft');
+  res.json({
+    publicBaseUrl: baseUrl(req),
+    gmail: {
+      configured: gmail.configured,
+      clientIdPresent: gmail.clientIdPresent,
+      clientSecretPresent: gmail.clientSecretPresent,
+      redirectUri: redirectUri(req, 'gmail'),
+    },
+    microsoft: {
+      configured: microsoft.configured,
+      clientIdPresent: microsoft.clientIdPresent,
+      clientSecretPresent: microsoft.clientSecretPresent,
+      tenant: microsoft.tenant,
+      redirectUri: redirectUri(req, 'microsoft'),
+    },
+  });
+});
+
 app.get('/inbox-sweeper/api/status', (req, res) => {
   ensureSessionCollections(req);
   const accounts = {};
@@ -494,7 +569,7 @@ app.post('/inbox-sweeper/api/yahoo/connect', async (req, res) => {
 });
 
 app.get('/inbox-sweeper/api/gmail/auth', (req, res) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(500).send('Gmail OAuth is not configured.');
+  if (!requireOAuthConfigured('gmail', req, res)) return;
   ensureSessionCollections(req);
   const state = randomState();
   req.session.oauthState = { provider: 'gmail', state, createdAt: Date.now() };
@@ -537,7 +612,7 @@ app.get('/inbox-sweeper/api/gmail/callback', async (req, res) => {
 });
 
 app.get('/inbox-sweeper/api/microsoft/auth', (req, res) => {
-  if (!process.env.MICROSOFT_CLIENT_ID || !process.env.MICROSOFT_CLIENT_SECRET) return res.status(500).send('Microsoft OAuth is not configured.');
+  if (!requireOAuthConfigured('microsoft', req, res)) return;
   ensureSessionCollections(req);
   const tenant = process.env.MICROSOFT_TENANT || 'common';
   const state = randomState();
