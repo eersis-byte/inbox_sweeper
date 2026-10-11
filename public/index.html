@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Inbox Sweeper</title>
+    <title>Email Cleaner 2.0</title>
     <link rel="stylesheet" href="/inbox-sweeper/styles.css" />
   </head>
   <body>
@@ -11,8 +11,8 @@
       <section class="card">
         <header class="topbar">
           <div>
-            <h1>Inbox Sweeper</h1>
-            <p class="subtitle">Clean up Gmail, Microsoft Outlook, and Yahoo emails by sender. Scan, preview, confirm, and move to Trash.</p>
+            <h1>Email Cleaner 2.0</h1>
+            <p class="subtitle">Clean up Gmail, Microsoft Outlook, and Yahoo emails by sender or domain. Scan, preview, confirm, and move to Trash.</p>
           </div>
           <button id="refreshBtn" class="secondary">Refresh Status</button>
         </header>
@@ -96,7 +96,8 @@
           <div class="toolbar">
             <h2>Senders</h2>
             <div class="toolbar-actions">
-              <input id="senderSearch" class="search" placeholder="Search sender..." />
+              <select id="groupMode" aria-label="Group messages by"><option value="domain" selected>Group by domain</option><option value="sender">Group by sender</option></select>
+              <input id="senderSearch" class="search" placeholder="Search domain or sender..." />
               <button id="selectVisibleBtn" class="secondary">Select visible</button>
               <button id="clearSelectionBtn" class="secondary">Clear</button>
             </div>

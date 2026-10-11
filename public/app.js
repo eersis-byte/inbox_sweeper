@@ -9,6 +9,8 @@ const state = {
   config: {},
   activeProvider: null,
   senders: [],
+  domains: [],
+  groupMode: 'domain',
   selected: new Set(),
   previewTotal: 0,
 };
@@ -28,6 +30,7 @@ const els = {
   scanBtn: $('scanBtn'),
   sendersPanel: $('sendersPanel'),
   senderSearch: $('senderSearch'),
+  groupMode: $('groupMode'),
   sendersTable: $('sendersTable'),
   selectionSummary: $('selectionSummary'),
   previewBtn: $('previewBtn'),
@@ -165,27 +168,29 @@ async function refreshStatus() {
 
 function visibleSenders() {
   const q = els.senderSearch.value.trim().toLowerCase();
-  if (!q) return state.senders;
-  return state.senders.filter((s) => `${s.fromName || ''} ${s.fromEmail || ''}`.toLowerCase().includes(q));
+  const rows = state.groupMode === 'domain' ? state.domains : state.senders;
+  if (!q) return rows;
+  return rows.filter((s) => (state.groupMode === 'domain' ? s.domain : `${s.fromName || ''} ${s.fromEmail || ''}`).toLowerCase().includes(q));
 }
 
 function renderSenders() {
   const rows = visibleSenders();
-  els.sendersPanel.classList.toggle('hidden', state.senders.length === 0);
+  els.sendersPanel.classList.toggle('hidden', (state.groupMode === 'domain' ? state.domains : state.senders).length === 0);
   els.previewPanel.classList.add('hidden');
   els.resultPanel.classList.add('hidden');
 
   const header = `
     <div class="table-header">
-      <div>Select</div><div>Sender</div><div>Total</div><div>Unread</div><div>Flagged</div><div>Attach.</div><div>Latest</div>
+      <div>Select</div><div>${state.groupMode === "domain" ? "Domain / Senders" : "Sender"}</div><div>Total</div><div>Unread</div><div>Flagged</div><div>Attach.</div><div>Latest</div>
     </div>`;
 
   const body = rows.map((s) => {
-    const checked = state.selected.has(s.fromEmail) ? 'checked' : '';
+    const key = state.groupMode === 'domain' ? s.domain : s.fromEmail;
+    const checked = state.selected.has(key) ? 'checked' : '';
     return `
       <div class="table-row">
-        <div><input type="checkbox" data-sender="${escapeHtml(s.fromEmail)}" ${checked}></div>
-        <div><div class="sender-name">${escapeHtml(s.fromName || s.fromEmail)}</div><div class="sender-email">${escapeHtml(s.fromEmail)}</div></div>
+        <div><input type="checkbox" data-sender="${escapeHtml(key)}" ${checked}></div>
+        <div><div class="sender-name">${escapeHtml(state.groupMode === "domain" ? s.domain : (s.fromName || s.fromEmail))}</div><div class="sender-email">${state.groupMode === "domain" ? `${s.senderCount} sender(s)` : escapeHtml(s.fromEmail)}</div></div>
         <div>${s.totalCount}</div>
         <div>${s.unreadCount}</div>
         <div>${s.flaggedCount}</div>
@@ -207,16 +212,17 @@ function renderSenders() {
 }
 
 function renderSelectionSummary() {
-  const selectedSenders = state.senders.filter((s) => state.selected.has(s.fromEmail));
+  const selectedSenders = (state.groupMode === 'domain' ? state.domains : state.senders).filter((s) => state.selected.has(state.groupMode === 'domain' ? s.domain : s.fromEmail));
   const count = selectedSenders.reduce((sum, s) => sum + s.totalCount, 0);
   els.selectionSummary.textContent = selectedSenders.length
-    ? `Selected ${selectedSenders.length} sender(s), approximately ${count} matching scanned emails.`
+    ? `Selected ${selectedSenders.length} ${state.groupMode === 'domain' ? 'domain(s)' : 'sender(s)'}, approximately ${count} matching scanned emails.`
     : 'No senders selected.';
   els.previewBtn.disabled = selectedSenders.length === 0 || !state.activeProvider;
 }
 
 function resetResults() {
   state.senders = [];
+  state.domains = [];
   state.selected.clear();
   state.previewTotal = 0;
   els.providerNote.textContent = '';
@@ -268,6 +274,7 @@ async function scanActiveProvider() {
       body: JSON.stringify({ limit: Number(els.limitSelect.value) }),
     });
     state.senders = data.senders || [];
+    state.domains = data.domains || [];
     els.providerNote.textContent = data.note || `Scanned ${data.scanned || 0} Inbox messages.`;
     renderSenders();
   } catch (err) {
@@ -286,7 +293,8 @@ async function previewCleanup() {
     const data = await api(`/${state.activeProvider}/preview`, {
       method: 'POST',
       body: JSON.stringify({
-        senders: Array.from(state.selected),
+        senders: state.groupMode === 'sender' ? Array.from(state.selected) : [],
+        domains: state.groupMode === 'domain' ? Array.from(state.selected) : [],
         includeUnread: els.includeUnread.checked,
         skipFlagged: els.skipFlagged.checked,
         skipAttachments: els.skipAttachments.checked,
@@ -343,12 +351,18 @@ els.refreshBtn.addEventListener('click', refreshStatus);
 els.providerSelect.addEventListener('change', () => { state.activeProvider = els.providerSelect.value; resetResults(); });
 els.scanBtn.addEventListener('click', scanActiveProvider);
 els.senderSearch.addEventListener('input', renderSenders);
+els.groupMode.addEventListener('change', () => {
+  state.groupMode = els.groupMode.value;
+  state.selected.clear();
+  els.previewPanel.classList.add('hidden');
+  renderSenders();
+});
 els.previewBtn.addEventListener('click', previewCleanup);
 els.confirmInput.addEventListener('input', () => {
   els.trashBtn.disabled = els.confirmInput.value !== `DELETE ${state.previewTotal}` || state.previewTotal === 0;
 });
 els.trashBtn.addEventListener('click', moveToTrash);
-els.selectVisibleBtn.addEventListener('click', () => { visibleSenders().forEach((s) => state.selected.add(s.fromEmail)); renderSenders(); });
+els.selectVisibleBtn.addEventListener('click', () => { visibleSenders().forEach((s) => state.selected.add(state.groupMode === 'domain' ? s.domain : s.fromEmail)); renderSenders(); });
 els.clearSelectionBtn.addEventListener('click', () => { state.selected.clear(); renderSenders(); });
 
 

@@ -217,8 +217,37 @@ function groupMessagesBySender(messages) {
   return Array.from(map.values()).sort((a, b) => b.totalCount - a.totalCount);
 }
 
+function senderDomain(email) {
+  const normalized = normalizeEmail(email);
+  const at = normalized.lastIndexOf('@');
+  return at > 0 && at < normalized.length - 1 ? normalized.slice(at + 1) : '';
+}
+
+function groupMessagesByDomain(messages) {
+  const domains = new Map();
+  for (const msg of messages) {
+    const domain = senderDomain(msg.fromEmail);
+    if (!domain) continue;
+    const group = domains.get(domain) || {
+      domain, totalCount: 0, unreadCount: 0, flaggedCount: 0,
+      attachmentCount: 0, latestDate: null, senders: new Set(),
+    };
+    group.totalCount++;
+    group.senders.add(normalizeEmail(msg.fromEmail));
+    if (msg.unread) group.unreadCount++;
+    if (msg.flagged) group.flaggedCount++;
+    if (msg.hasAttachments) group.attachmentCount++;
+    if (msg.date && (!group.latestDate || msg.date > group.latestDate)) group.latestDate = msg.date;
+    domains.set(domain, group);
+  }
+  return Array.from(domains.values(), ({ senders, ...group }) => ({
+    ...group, senderCount: senders.size,
+  })).sort((a, b) => b.totalCount - a.totalCount);
+}
+
 function filterMessagesFromCache(req, provider, options) {
   const senders = new Set((options.senders || []).map(normalizeEmail).filter(Boolean));
+  const domains = new Set((options.domains || []).map((v) => String(v).trim().toLowerCase()).filter(Boolean));
   const cache = req.session.scanCache?.[provider];
   const messages = Array.isArray(cache?.messages) ? cache.messages : [];
   const includeUnread = options.includeUnread !== false;
@@ -228,7 +257,7 @@ function filterMessagesFromCache(req, provider, options) {
   const matched = [];
 
   for (const msg of messages) {
-    if (!senders.has(normalizeEmail(msg.fromEmail))) continue;
+    if (!senders.has(normalizeEmail(msg.fromEmail)) && !domains.has(senderDomain(msg.fromEmail))) continue;
     if (!includeUnread && msg.unread) { skipped.unread += 1; continue; }
     if (skipFlagged && msg.flagged) { skipped.flagged += 1; continue; }
     if (skipAttachments && msg.hasAttachments) { skipped.attachments += 1; continue; }
@@ -680,7 +709,7 @@ app.post('/inbox-sweeper/api/:provider/scan', async (req, res) => {
 
     req.session.scanCache[provider] = { createdAt: Date.now(), messages: result.messages };
     req.session.preview = null;
-    res.json({ senders: result.senders, note: result.note || null, scanned: result.messages.length });
+    res.json({ senders: result.senders, domains: groupMessagesByDomain(result.messages), note: result.note || null, scanned: result.messages.length });
   } catch (error) {
     res.status(500).json({ error: error.message || 'Scan failed.' });
   }
@@ -691,9 +720,12 @@ app.post('/inbox-sweeper/api/:provider/preview', async (req, res) => {
     ensureSessionCollections(req);
     const provider = req.params.provider;
     const senders = Array.isArray(req.body.senders) ? req.body.senders : [];
+    const domains = Array.isArray(req.body.domains) ? req.body.domains : [];
     if (!['yahoo', 'gmail', 'microsoft'].includes(provider)) return res.status(400).json({ error: 'Unknown provider.' });
     if (!req.session.accounts?.[provider]) return res.status(401).json({ error: `${provider} account is not connected.` });
-    if (senders.length === 0) return res.status(400).json({ error: 'Select at least one sender.' });
+    if (senders.length === 0 && domains.length === 0) return res.status(400).json({ error: 'Select at least one sender or domain.' });
+    if (domains.length > 100) return res.status(400).json({ error: 'Select 100 domains or fewer at one time.' });
+    if (!domains.every((d) => typeof d === 'string' && /^[a-z0-9.-]+$/i.test(d) && d.length <= 253)) return res.status(400).json({ error: 'Invalid domain selection.' });
     if (senders.length > 100) return res.status(400).json({ error: 'Select 100 senders or fewer at one time.' });
     const cache = req.session.scanCache?.[provider];
     if (!cache || !Array.isArray(cache.messages)) return res.status(400).json({ error: 'Please scan this account before previewing cleanup.' });
@@ -701,6 +733,7 @@ app.post('/inbox-sweeper/api/:provider/preview', async (req, res) => {
 
     const { messages, skipped } = filterMessagesFromCache(req, provider, {
       senders,
+      domains,
       includeUnread: req.body.includeUnread,
       skipFlagged: req.body.skipFlagged,
       skipAttachments: req.body.skipAttachments,
@@ -711,6 +744,7 @@ app.post('/inbox-sweeper/api/:provider/preview', async (req, res) => {
       createdAt: Date.now(),
       ids: messages.map((m) => m.id),
       senders: senders.map(normalizeEmail),
+      domains: domains.map((d) => d.toLowerCase()),
     };
 
     res.json({
